@@ -13,12 +13,14 @@ import { ROLES } from '../../constants/roles.js';
 
 const router = Router();
 
-// Xem — Admin xem hết, Teacher chỉ xem lớp mình phụ trách (xử lý trong service)
+// Xem — Admin xem hết, Teacher chỉ xem lớp mình phụ trách
 router.get('/', authenticate, authorize([ROLES.SUPER_ADMIN, ROLES.TEACHER]), validateQuery(listClassQuerySchema), listClassesController);
 router.get('/:id', authenticate, authorize([ROLES.SUPER_ADMIN, ROLES.TEACHER]), getClassController);
 
-// Quản lý — chỉ SUPER_ADMIN
-router.post('/', authenticate, authorize([ROLES.SUPER_ADMIN]), validate(createClassSchema), createClassController);
+// Tạo — giờ cả SUPER_ADMIN và TEACHER đều tạo được
+router.post('/', authenticate, authorize([ROLES.SUPER_ADMIN, ROLES.TEACHER]), validate(createClassSchema), createClassController);
+
+// Sửa/xóa/quản lý giáo viên — vẫn chỉ SUPER_ADMIN (đảm bảo kiểm soát tập trung)
 router.patch('/:id', authenticate, authorize([ROLES.SUPER_ADMIN]), validate(updateClassSchema), updateClassController);
 router.patch('/:id/teachers', authenticate, authorize([ROLES.SUPER_ADMIN]), validate(updateClassTeachersSchema), updateClassTeachersController);
 router.delete('/:id', authenticate, authorize([ROLES.SUPER_ADMIN]), deleteClassController);

@@ -15,15 +15,30 @@ const validateTeachers = async (teacherIds, primaryTeacherId) => {
   }
 };
 
-export const createClass = async ({ name, courseId, teacherIds, primaryTeacherId }) => {
+export const createClass = async ({ name, courseId, teacherIds, primaryTeacherId }, requestUser) => {
   const course = await classRepo.validateCourseExists(courseId);
   if (!course || course.deletedAt) {
     throw new AppError(404, 'Không tìm thấy khóa học');
   }
 
-  await validateTeachers(teacherIds, primaryTeacherId);
+  let finalTeacherIds;
+  let finalPrimaryTeacherId;
 
-  return classRepo.createClass({ name, courseId, teacherIds, primaryTeacherId });
+  if (requestUser.role === 'TEACHER') {
+    // Teacher tự tạo lớp -> tự động gán chính họ, bỏ qua teacherIds nếu có gửi lên
+    finalTeacherIds = [requestUser.id];
+    finalPrimaryTeacherId = requestUser.id;
+  } else {
+    // SUPER_ADMIN -> bắt buộc phải truyền teacherIds
+    if (!teacherIds || teacherIds.length === 0) {
+      throw new AppError(400, 'Cần chọn ít nhất 1 giáo viên phụ trách');
+    }
+    await validateTeachers(teacherIds, primaryTeacherId);
+    finalTeacherIds = teacherIds;
+    finalPrimaryTeacherId = primaryTeacherId;
+  }
+
+  return classRepo.createClass({ name, courseId, teacherIds: finalTeacherIds, primaryTeacherId: finalPrimaryTeacherId });
 };
 
 export const listClasses = async (query, requestUser) => {
@@ -34,10 +49,13 @@ export const listClasses = async (query, requestUser) => {
     ...(query.courseId && { courseId: query.courseId }),
     ...(query.isActive !== undefined && { isActive: query.isActive === 'true' }),
     ...(query.search && { name: { contains: query.search, mode: 'insensitive' } }),
-    // Teacher chỉ thấy lớp mình phụ trách; Admin thấy hết (hoặc filter theo teacherId nếu truyền vào)
-    ...((requestUser.role === 'TEACHER' || query.teacherId) && {
-      teachers: { some: { teacherId: query.teacherId || requestUser.id } },
-    }),
+    // Teacher chỉ thấy lớp mình phụ trách (khóa cứng theo requestUser.id, bỏ qua query.teacherId);
+    // Admin thấy hết, hoặc filter theo teacherId nếu truyền vào
+    ...(requestUser.role === 'TEACHER'
+      ? { teachers: { some: { teacherId: requestUser.id } } }
+      : query.teacherId
+        ? { teachers: { some: { teacherId: query.teacherId } } }
+        : {}),
   };
 
   const { items, total } = await classRepo.findManyClasses({ where, skip, take: limit });

@@ -7,7 +7,7 @@ const handleError = (res, err) => {
 
 export const createClassController = async (req, res) => {
   try {
-    const classData = await classService.createClass(req.body);
+    const classData = await classService.createClass(req.body, req.user);
     return successResponse(res, { statusCode: 201, message: 'Tạo lớp học thành công', data: classData });
   } catch (err) {
     return handleError(res, err);
