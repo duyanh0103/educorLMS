@@ -77,6 +77,7 @@ export const getMe = async (userId) => {
     email: user.email,
     role: user.role,
     avatarUrl: user.avatarUrl,
+    isActive: user.isActive,
   };
 };
 

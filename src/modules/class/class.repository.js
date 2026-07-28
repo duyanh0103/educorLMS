@@ -27,12 +27,14 @@ export const createClass = async ({ name, courseId, teacherIds, primaryTeacherId
 };
 
 export const findClassById = async (id) => {
-  return prisma.class.findUnique({ where: { id }, include: classInclude });
+  return prisma.class.findUnique({ where: { id }, include: classInclude, relationLoadStrategy: 'join' });
 };
 
 export const findManyClasses = async ({ where, skip, take }) => {
   const [items, total] = await Promise.all([
-    prisma.class.findMany({ where, skip, take, orderBy: { createdAt: 'desc' }, include: classInclude }),
+    prisma.class.findMany({
+      where, skip, take, orderBy: { createdAt: 'desc' }, include: classInclude, relationLoadStrategy: 'join',
+    }),
     prisma.class.count({ where }),
   ]);
   return { items, total };
