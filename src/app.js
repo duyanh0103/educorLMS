@@ -12,6 +12,7 @@ import { classPlaylistRouter, playlistRouter, videoRouter } from './modules/play
 import { classExamRouter, examRouter } from './modules/exam/exam.route.js';
 import { examQuestionRouter, questionRouter } from './modules/question/question.route.js';
 import { examSubmissionRouter, submissionRouter, examStudentRouter } from './modules/submission/submission.route.js';
+import { examSubmissionRetakeRouter, classRetakeRequestRouter, retakeRequestRouter } from './modules/retakeRequest/retakeRequest.route.js';
 import { classAssignmentRouter, assignmentRouter, assignmentSubmissionRouter } from './modules/assignment/assignment.route.js';
 import { dashboardRouter } from './modules/dashboard/dashboard.route.js';
 import { classSessionRouter, sessionRouter } from './modules/session/session.route.js';
@@ -44,8 +45,12 @@ app.use('/api/exams/:examId/questions', examQuestionRouter);
 app.use('/api/questions', questionRouter);
 
 app.use('/api/exams/:examId/submissions', examSubmissionRouter);
+app.use('/api/exams/:examId/submissions', examSubmissionRetakeRouter);
 app.use('/api/submissions', submissionRouter);
 app.use('/api/exams/:examId/students', examStudentRouter);
+
+app.use('/api/classes/:classId/retake-requests', classRetakeRequestRouter);
+app.use('/api/retake-requests', retakeRequestRouter);
 
 app.use('/api/classes/:classId/assignments', classAssignmentRouter);
 app.use('/api/assignments', assignmentRouter);

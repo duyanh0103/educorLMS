@@ -49,6 +49,12 @@ enum AssignmentStatus {
   CLOSED
 }
 
+enum RetakeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ==========================
 // USER
 // ==========================
@@ -74,11 +80,13 @@ model User {
   gradedSubmissions    Submission[]           @relation("SubmissionGrader")
   gradedAssignmentSubs AssignmentSubmission[] @relation("AssignmentSubGrader")
   createdClassSessions ClassSession[]
+  reviewedRetakeRequests ExamRetakeRequest[]  @relation("RetakeRequestReviewer")
 
   // Relations - Student side
   enrollments    Enrollment[]
   submissions    Submission[]           @relation("SubmissionStudent")
   assignmentSubs AssignmentSubmission[] @relation("AssignmentSubStudent")
+  retakeRequests ExamRetakeRequest[]    @relation("RetakeRequestStudent")
 
   @@map("users")
 }
@@ -216,6 +224,7 @@ model Exam {
 
   questions   Question[]
   submissions Submission[]
+  retakeRequests ExamRetakeRequest[]
 
   @@map("exams")
 }
@@ -261,8 +270,35 @@ model Submission {
   gradedAt      DateTime?        @map("graded_at")
   createdAt     DateTime         @default(now()) @map("created_at")
 
+  retakeRequests ExamRetakeRequest[]
+
   @@unique([examId, studentId, attemptNumber])
   @@map("submissions")
+}
+
+// ==========================
+// EXAM RETAKE REQUEST (học sinh xin làm lại bài thi)
+// ==========================
+
+model ExamRetakeRequest {
+  id           String              @id @default(uuid())
+  examId       String              @map("exam_id")
+  exam         Exam                @relation(fields: [examId], references: [id])
+  submissionId String              @map("submission_id")
+  submission   Submission          @relation(fields: [submissionId], references: [id])
+  studentId    String              @map("student_id")
+  student      User                @relation("RetakeRequestStudent", fields: [studentId], references: [id])
+  status       RetakeRequestStatus @default(PENDING)
+  reason       String?
+  reviewNote   String?             @map("review_note")
+  reviewedById String?             @map("reviewed_by_id")
+  reviewedBy   User?               @relation("RetakeRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?           @map("reviewed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("exam_retake_requests")
 }
 
 // ==========================

@@ -1,6 +1,7 @@
 import * as submissionRepo from './submission.repository.js';
 import * as examRepo from '../exam/exam.repository.js';
 import * as questionRepo from '../question/question.repository.js';
+import * as retakeRequestRepo from '../retakeRequest/retakeRequest.repository.js';
 import { isTeacherAssignedToClass, isStudentEnrolledInClass } from '../exam/exam.repository.js';
 import { getPaginationParams, buildPaginationMeta } from '../../utils/pagination.js';
 import { AppError } from '../auth/auth.service.js';
@@ -97,7 +98,21 @@ export const startSubmission = async (examId, requestUser) => {
       startedAt: new Date(),
     });
   } else if (submission.status !== 'IN_PROGRESS') {
-    throw new AppError(409, 'Bạn đã nộp bài, chờ giáo viên mở lại để làm tiếp');
+    const approvedRequest = await retakeRequestRepo.findApprovedRequestForSubmission(submission.id);
+    if (!approvedRequest) {
+      throw new AppError(409, 'Bạn đã nộp bài, chờ giáo viên mở lại để làm tiếp');
+    }
+
+    const maxAttempt = await submissionRepo.getMaxAttemptNumber(examId, studentId);
+    const questions = await questionRepo.findQuestionsByExam(examId);
+    submission = await submissionRepo.createSubmission({
+      examId,
+      studentId,
+      attemptNumber: maxAttempt + 1,
+      status: 'IN_PROGRESS',
+      startedAt: new Date(),
+      shuffleConfig: buildShuffleConfig(questions),
+    });
   } else if (!submission.startedAt) {
     const updateData = { startedAt: new Date() };
     if (submission.attemptNumber > 1) {
