@@ -58,6 +58,11 @@ export const refreshAccessToken = async (refreshToken) => {
     throw new AppError(401, 'Tài khoản không tồn tại hoặc đã bị khóa');
   }
 
+  // Refresh token phát hành trước lần đổi mật khẩu gần nhất -> coi như phiên cũ, thu hồi.
+  if (user.passwordChangedAt && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
+    throw new AppError(401, 'Mật khẩu đã được thay đổi, vui lòng đăng nhập lại');
+  }
+
   const payload = { id: user.id, username: user.username, role: user.role };
   const newAccessToken = generateAccessToken(payload);
 

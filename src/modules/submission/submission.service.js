@@ -134,6 +134,32 @@ export const startSubmission = async (examId, requestUser) => {
   };
 };
 
+// Cho Student tự tra bài nộp của mình theo examId, dùng khi POST /start trả 409
+// (đã nộp bài từ phiên trước) mà FE chưa có sẵn submissionId để hiển thị điểm/kết quả.
+export const getMySubmission = async (examId, requestUser) => {
+  await checkExamAccess(examId, requestUser, { allowStudent: true });
+
+  const submission = await submissionRepo.findLatestSubmission(examId, requestUser.id);
+  if (!submission) {
+    throw new AppError(404, 'Bạn chưa làm bài thi này');
+  }
+
+  const retakeRequest = await retakeRequestRepo.findLatestRequestForSubmission(submission.id);
+
+  return {
+    id: submission.id,
+    attemptNumber: submission.attemptNumber,
+    status: submission.status,
+    score: submission.score,
+    startedAt: submission.startedAt,
+    submittedAt: submission.submittedAt,
+    gradedAt: submission.gradedAt,
+    retakeRequest: retakeRequest
+      ? { id: retakeRequest.id, status: retakeRequest.status, reason: retakeRequest.reason }
+      : null,
+  };
+};
+
 export const submitSubmission = async (examId, { answers }, requestUser) => {
   const exam = await checkExamAccess(examId, requestUser, { allowStudent: true });
   const studentId = requestUser.id;

@@ -14,6 +14,15 @@ export const startSubmissionController = async (req, res) => {
   }
 };
 
+export const getMySubmissionController = async (req, res) => {
+  try {
+    const result = await submissionService.getMySubmission(req.params.examId, req.user);
+    return successResponse(res, { message: 'Lấy bài nộp thành công', data: result });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 export const submitSubmissionController = async (req, res) => {
   try {
     const result = await submissionService.submitSubmission(req.params.examId, req.body, req.user);

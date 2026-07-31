@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   startSubmissionController, submitSubmissionController, listSubmissionsController,
   getSubmissionController, gradeSubmissionController, reopenSubmissionController,
+  getMySubmissionController,
 } from './submission.controller.js';
 import { authenticate } from '../../middlewares/authenticate.js';
 import { authorize } from '../../middlewares/authorize.js';
@@ -21,6 +22,10 @@ examSubmissionRouter.post(
 examSubmissionRouter.post(
   '/submit', authenticate, authorize([ROLES.STUDENT]),
   validate(submitAnswersSchema), submitSubmissionController
+);
+examSubmissionRouter.get(
+  '/mine', authenticate, authorize([ROLES.STUDENT]),
+  getMySubmissionController
 );
 examSubmissionRouter.get(
   '/', authenticate, authorize([ROLES.SUPER_ADMIN, ROLES.TEACHER]),

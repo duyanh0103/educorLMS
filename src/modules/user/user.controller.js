@@ -21,6 +21,19 @@ export const createUserController = async (req, res) => {
   }
 };
 
+export const bulkCreateUsersController = async (req, res) => {
+  try {
+    const result = await userService.createUsersBulk(req.body.users);
+    return successResponse(res, {
+      statusCode: 201,
+      message: 'Tạo tài khoản hàng loạt thành công',
+      data: result,
+    });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
 export const listUsersController = async (req, res) => {
   try {
     const result = await userService.listUsers(req.validatedQuery);
@@ -85,6 +98,15 @@ export const updateMyProfileController = async (req, res) => {
   try {
     const user = await userService.updateUser(req.user.id, req.body);
     return successResponse(res, { message: 'Cập nhật hồ sơ thành công', data: user });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
+
+export const changeMyPasswordController = async (req, res) => {
+  try {
+    const result = await userService.changeMyPassword(req.user.id, req.body);
+    return successResponse(res, { message: 'Đổi mật khẩu thành công', data: result });
   } catch (err) {
     return handleError(res, err);
   }
