@@ -128,12 +128,16 @@ export const createUsersBulk = async (rows) => {
   };
 };
 
-export const listUsers = async (query) => {
+export const listUsers = async (query, requestUser) => {
   const { page, limit, skip } = getPaginationParams(query);
+
+  // TEACHER chỉ được dùng endpoint này để tìm học sinh (vd. dialog ghi danh),
+  // không được liệt kê SUPER_ADMIN/TEACHER khác -> ép cứng role=STUDENT.
+  const roleFilter = requestUser?.role === 'TEACHER' ? 'STUDENT' : query.role;
 
   const where = {
     deletedAt: null,
-    ...(query.role && { role: query.role }),
+    ...(roleFilter && { role: roleFilter }),
     ...(query.isActive !== undefined && { isActive: query.isActive === 'true' }),
     ...(query.search && {
       OR: [

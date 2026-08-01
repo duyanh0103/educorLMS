@@ -27,7 +27,10 @@ router.post(
   '/bulk', authenticate, authorize([ROLES.SUPER_ADMIN]),
   validate(bulkCreateUsersSchema), bulkCreateUsersController
 );
-router.get('/', authenticate, authorize([ROLES.SUPER_ADMIN]), validateQuery(listUserQuerySchema), listUsersController);
+router.get(
+  '/', authenticate, authorize([ROLES.SUPER_ADMIN, ROLES.TEACHER]),
+  validateQuery(listUserQuerySchema), listUsersController
+);
 router.get('/:id', authenticate, authorize([ROLES.SUPER_ADMIN]), getUserController);
 router.patch('/:id', authenticate, authorize([ROLES.SUPER_ADMIN]), validate(updateUserSchema), updateUserController);
 router.patch('/:id/status', authenticate, authorize([ROLES.SUPER_ADMIN]), toggleActiveController);

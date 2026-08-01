@@ -36,7 +36,7 @@ export const bulkCreateUsersController = async (req, res) => {
 
 export const listUsersController = async (req, res) => {
   try {
-    const result = await userService.listUsers(req.validatedQuery);
+    const result = await userService.listUsers(req.validatedQuery, req.user);
     return successResponse(res, { message: 'Lấy danh sách thành công', data: result });
   } catch (err) {
     return handleError(res, err);
