@@ -16,7 +16,7 @@ export const findManyCourses = async ({ where, skip, take }) => {
       take,
       orderBy: { createdAt: 'desc' },
       include: {
-        _count: { select: { classes: true, playlists: true } },
+        _count: { select: { classes: true } },
       },
     }),
     prisma.course.count({ where }),
