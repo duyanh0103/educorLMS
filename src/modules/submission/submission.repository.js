@@ -32,6 +32,20 @@ export const findSubmissionById = async (id) => {
   });
 };
 
+// Dùng cho getSubmissionById/gradeSubmission: gộp sẵn exam + danh sách giáo viên phụ trách lớp
+// trong CÙNG 1 round-trip, để service kiểm tra quyền TEACHER ngay trên dữ liệu đã có (so sánh
+// teacherId trong mảng) thay vì phải query riêng isTeacherAssignedToClass sau khi lấy exam —
+// gộp 3 query tuần tự (submission, exam, kiểm tra quyền) xuống còn 1.
+export const findSubmissionWithExamAccess = async (id) => {
+  return prisma.submission.findUnique({
+    where: { id },
+    include: {
+      student: { select: studentSelect },
+      exam: { include: { class: { select: { teachers: { select: { teacherId: true } } } } } },
+    },
+  });
+};
+
 export const findSubmissionsByExam = async ({ examId, skip, take }) => {
   const [items, total] = await Promise.all([
     prisma.submission.findMany({

@@ -2,32 +2,26 @@ import * as submissionRepo from './submission.repository.js';
 import * as examRepo from '../exam/exam.repository.js';
 import * as questionRepo from '../question/question.repository.js';
 import * as retakeRequestRepo from '../retakeRequest/retakeRequest.repository.js';
-import { isTeacherAssignedToClass, isStudentEnrolledInClass } from '../exam/exam.repository.js';
 import { getPaginationParams, buildPaginationMeta } from '../../utils/pagination.js';
 import { AppError } from '../auth/auth.service.js';
 
+// Gộp "lấy exam" + "kiểm tra quyền" thành 1 round-trip DB qua examRepo.findExamWithAccess thay vì
+// 2 query tuần tự — xem giải thích chi tiết ở exam.repository.js#findExamWithAccess.
 const checkExamAccess = async (examId, requestUser, { allowStudent = false } = {}) => {
-  const exam = await examRepo.findExamById(examId);
-  if (!exam || exam.deletedAt) {
+  const exam = await examRepo.findExamWithAccess(examId, requestUser, { allowStudent });
+  if (exam) return exam;
+
+  const rawExam = await examRepo.findExamById(examId);
+  if (!rawExam || rawExam.deletedAt) {
     throw new AppError(404, 'Không tìm thấy bài thi');
   }
-
-  if (requestUser.role === 'TEACHER') {
-    const isAssigned = await isTeacherAssignedToClass(exam.classId, requestUser.id);
-    if (!isAssigned) {
-      throw new AppError(403, 'Bạn không phụ trách lớp học này');
-    }
-  } else if (requestUser.role === 'STUDENT') {
-    if (!allowStudent) {
-      throw new AppError(403, 'Không có quyền truy cập');
-    }
-    const isEnrolled = await isStudentEnrolledInClass(exam.classId, requestUser.id);
-    if (!isEnrolled) {
-      throw new AppError(403, 'Bạn chưa tham gia lớp học này');
-    }
+  if (requestUser.role === 'STUDENT' && !allowStudent) {
+    throw new AppError(403, 'Không có quyền truy cập');
   }
-
-  return exam;
+  throw new AppError(
+    403,
+    requestUser.role === 'TEACHER' ? 'Bạn không phụ trách lớp học này' : 'Bạn chưa tham gia lớp học này'
+  );
 };
 
 const sanitizeQuestionForStudent = (question) => {
@@ -207,27 +201,35 @@ export const submitSubmission = async (examId, { answers }, requestUser) => {
 };
 
 export const listSubmissionsByExam = async (examId, query, requestUser) => {
-  await checkExamAccess(examId, requestUser);
-
   const { page, limit, skip } = getPaginationParams(query);
-  const { items, total } = await submissionRepo.findSubmissionsByExam({ examId, skip, take: limit });
 
-  return { items, meta: buildPaginationMeta(total, page, limit) };
+  // 1 round-trip duy nhất: exam + kiểm tra quyền + trang bài nộp + tổng số cùng lúc — xem
+  // exam.repository.js#findExamWithAccessAndSubmissionsPage.
+  const exam = await examRepo.findExamWithAccessAndSubmissionsPage(examId, requestUser, { skip, take: limit });
+  if (!exam) {
+    await checkExamAccess(examId, requestUser); // luôn throw đúng 404/403
+  }
+
+  const { submissions: items, _count } = exam;
+
+  return { items, meta: buildPaginationMeta(_count.submissions, page, limit) };
 };
 
 export const getSubmissionById = async (id, requestUser) => {
-  const submission = await submissionRepo.findSubmissionById(id);
+  // 1 round-trip duy nhất: submission + exam + danh sách teacherId của lớp (đủ để kiểm tra quyền
+  // TEACHER ngay tại chỗ), thay vì 3 query tuần tự (submission -> exam -> isTeacherAssignedToClass).
+  const submission = await submissionRepo.findSubmissionWithExamAccess(id);
   if (!submission) {
     throw new AppError(404, 'Không tìm thấy bài nộp');
   }
 
-  const exam = await examRepo.findExamById(submission.examId);
+  const exam = submission.exam;
   if (!exam || exam.deletedAt) {
     throw new AppError(404, 'Không tìm thấy bài thi');
   }
 
   if (requestUser.role === 'TEACHER') {
-    const isAssigned = await isTeacherAssignedToClass(exam.classId, requestUser.id);
+    const isAssigned = exam.class.teachers.some((t) => t.teacherId === requestUser.id);
     if (!isAssigned) {
       throw new AppError(403, 'Bạn không phụ trách lớp học này');
     }
@@ -243,29 +245,35 @@ export const getSubmissionById = async (id, requestUser) => {
     ? shuffledQuestions.map(sanitizeQuestionForStudent)
     : shuffledQuestions;
 
-  return { ...submission, questions: questionsForResponse };
+  // Bỏ field `exam` (nested include chỉ dùng nội bộ để check quyền) khỏi response — giữ đúng
+  // shape cũ, không lộ thêm field lạ ra API.
+  const { exam: _exam, ...submissionFields } = submission;
+  return { ...submissionFields, questions: questionsForResponse };
 };
 
 export const gradeSubmission = async (id, { manualScore }, requestUser) => {
-  const submission = await submissionRepo.findSubmissionById(id);
+  // 1 round-trip: submission + exam + teacherId của lớp, thay vì 3 query tuần tự.
+  const submission = await submissionRepo.findSubmissionWithExamAccess(id);
   if (!submission) {
     throw new AppError(404, 'Không tìm thấy bài nộp');
   }
 
-  const exam = await examRepo.findExamById(submission.examId);
+  const exam = submission.exam;
   if (!exam || exam.deletedAt) {
     throw new AppError(404, 'Không tìm thấy bài thi');
   }
 
   if (requestUser.role === 'TEACHER') {
-    const isAssigned = await isTeacherAssignedToClass(exam.classId, requestUser.id);
+    const isAssigned = exam.class.teachers.some((t) => t.teacherId === requestUser.id);
     if (!isAssigned) {
       throw new AppError(403, 'Bạn không phụ trách lớp học này');
     }
   }
 
-  if (submission.status !== 'SUBMITTED') {
-    throw new AppError(409, 'Bài đã được chấm');
+  // Cho phép chấm lại (status SUBMITTED hoặc GRADED) để sửa khi lỡ bấm nhầm/đọc thiếu -
+  // chỉ chặn khi học sinh chưa nộp bài.
+  if (submission.status === 'IN_PROGRESS') {
+    throw new AppError(409, 'Học sinh chưa nộp bài, không thể chấm điểm');
   }
 
   const autoScore = submission.autoScore || 0;

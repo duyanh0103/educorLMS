@@ -1,54 +1,25 @@
 import * as questionRepo from './question.repository.js';
 import * as examRepo from '../exam/exam.repository.js';
-import * as classRepo from '../class/class.repository.js';
 import { AppError } from '../auth/auth.service.js';
 import { extractQuestionsFromFile } from './parsers/fileExtractor.js';
 
-const ensureExamWriteAccess = async (examId, requestUser) => {
-  const exam = await examRepo.findExamById(examId);
-  if (!exam || exam.deletedAt) {
-    throw new AppError(404, 'Không tìm thấy bài thi');
-  }
-
-  const classData = await classRepo.findClassById(exam.classId);
-  if (!classData || classData.deletedAt) {
-    throw new AppError(404, 'Không tìm thấy lớp học');
-  }
-
-  if (requestUser.role === 'TEACHER') {
-    const isAssigned = await examRepo.isTeacherAssignedToClass?.(exam.classId, requestUser.id)
-      ?? (await import('../class/class.repository.js')).isTeacherAssignedByIds?.(exam.classId, requestUser.id);
-    // fallback: dùng lại hàm đã có ở exam.repository.js
-  }
-
-  return exam;
-};
-
-// Dùng lại đúng helper đã có sẵn từ exam.repository.js để tránh trùng logic
-import { isTeacherAssignedToClass, isStudentEnrolledInClass } from '../exam/exam.repository.js';
-
+// Gộp "lấy exam" + "kiểm tra quyền" thành 1 round-trip DB qua examRepo.findExamWithAccess thay vì
+// 2 query tuần tự — xem giải thích chi tiết ở exam.repository.js#findExamWithAccess.
 const checkExamAccess = async (examId, requestUser, { allowStudent = false } = {}) => {
-  const exam = await examRepo.findExamById(examId);
-  if (!exam || exam.deletedAt) {
+  const exam = await examRepo.findExamWithAccess(examId, requestUser, { allowStudent });
+  if (exam) return exam;
+
+  const rawExam = await examRepo.findExamById(examId);
+  if (!rawExam || rawExam.deletedAt) {
     throw new AppError(404, 'Không tìm thấy bài thi');
   }
-
-  if (requestUser.role === 'TEACHER') {
-    const isAssigned = await isTeacherAssignedToClass(exam.classId, requestUser.id);
-    if (!isAssigned) {
-      throw new AppError(403, 'Bạn không phụ trách lớp học này');
-    }
-  } else if (requestUser.role === 'STUDENT') {
-    if (!allowStudent) {
-      throw new AppError(403, 'Không có quyền truy cập');
-    }
-    const isEnrolled = await isStudentEnrolledInClass(exam.classId, requestUser.id);
-    if (!isEnrolled) {
-      throw new AppError(403, 'Bạn chưa tham gia lớp học này');
-    }
+  if (requestUser.role === 'STUDENT' && !allowStudent) {
+    throw new AppError(403, 'Không có quyền truy cập');
   }
-
-  return exam;
+  throw new AppError(
+    403,
+    requestUser.role === 'TEACHER' ? 'Bạn không phụ trách lớp học này' : 'Bạn chưa tham gia lớp học này'
+  );
 };
 
 const ensureExamIsDraft = (exam) => {
@@ -69,13 +40,18 @@ export const createQuestion = async (examId, data, requestUser) => {
 };
 
 export const listQuestionsByExam = async (examId, requestUser) => {
-  const exam = await checkExamAccess(examId, requestUser, { allowStudent: true });
+  // 1 round-trip duy nhất: exam + kiểm tra quyền + danh sách câu hỏi cùng lúc (thay vì check quyền
+  // xong mới query câu hỏi riêng) — xem exam.repository.js#findExamWithAccessAndQuestions.
+  const exam = await examRepo.findExamWithAccessAndQuestions(examId, requestUser, { allowStudent: true });
+  if (!exam) {
+    await checkExamAccess(examId, requestUser, { allowStudent: true }); // luôn throw đúng 404/403
+  }
 
   if (requestUser.role === 'STUDENT' && exam.status !== 'PUBLISHED') {
     throw new AppError(403, 'Bài thi chưa được công bố');
   }
 
-  const questions = await questionRepo.findQuestionsByExam(examId);
+  const { questions } = exam;
 
   // Student không được thấy correctAnswer
   if (requestUser.role === 'STUDENT') {

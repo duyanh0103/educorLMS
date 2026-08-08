@@ -20,9 +20,24 @@ import { classSessionRouter, sessionRouter } from './modules/session/session.rou
 // ...
 
 const app = express();
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 app.use(helmet());
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Cho phép request không có origin (Postman, curl, mobile app)
+    if (!origin) return callback(null, true);
+    // Cho phép domain trong allowedOrigins, và mọi preview deployment *.vercel.app
+    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());

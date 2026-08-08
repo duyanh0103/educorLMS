@@ -3,27 +3,22 @@ import * as classRepo from '../class/class.repository.js';
 import { AppError } from '../auth/auth.service.js';
 
 const ensureClassAccess = async (classId, requestUser, { allowStudent = false } = {}) => {
-  const classData = await classRepo.findClassById(classId);
-  if (!classData || classData.deletedAt) {
+  const classData = await classRepo.findClassWithAccess(classId, requestUser, { allowStudent });
+  if (classData) return classData;
+
+  // Không có quyền (hoặc không tồn tại) — query lại (không lọc quyền) chỉ để phân biệt đúng
+  // 404 vs 403, nhánh này hiếm khi chạy nên không ảnh hưởng hiệu năng đường thường công.
+  const rawClass = await classRepo.findClassById(classId);
+  if (!rawClass || rawClass.deletedAt) {
     throw new AppError(404, 'Không tìm thấy lớp học');
   }
-
-  if (requestUser.role === 'TEACHER') {
-    const isAssigned = await examRepo.isTeacherAssignedToClass(classId, requestUser.id);
-    if (!isAssigned) {
-      throw new AppError(403, 'Bạn không phụ trách lớp học này');
-    }
-  } else if (requestUser.role === 'STUDENT') {
-    if (!allowStudent) {
-      throw new AppError(403, 'Không có quyền truy cập');
-    }
-    const isEnrolled = await examRepo.isStudentEnrolledInClass(classId, requestUser.id);
-    if (!isEnrolled) {
-      throw new AppError(403, 'Bạn chưa tham gia lớp học này');
-    }
+  if (requestUser.role === 'STUDENT' && !allowStudent) {
+    throw new AppError(403, 'Không có quyền truy cập');
   }
-
-  return classData;
+  throw new AppError(
+    403,
+    requestUser.role === 'TEACHER' ? 'Bạn không phụ trách lớp học này' : 'Bạn chưa tham gia lớp học này'
+  );
 };
 
 export const createExam = async (classId, data, requestUser) => {
@@ -39,12 +34,22 @@ export const listExamsByClass = async (classId, requestUser) => {
 };
 
 const ensureExamAccess = async (examId, requestUser, { allowStudent = false } = {}) => {
-  const exam = await examRepo.findExamById(examId);
-  if (!exam || exam.deletedAt) {
+  const exam = await examRepo.findExamWithAccess(examId, requestUser, { allowStudent });
+  if (exam) return exam;
+
+  // Không có quyền (hoặc không tồn tại) — query lại (không lọc quyền) chỉ để phân biệt đúng
+  // 404 vs 403, nhánh này hiếm khi chạy nên không ảnh hưởng hiệu năng đường thường công.
+  const rawExam = await examRepo.findExamById(examId);
+  if (!rawExam || rawExam.deletedAt) {
     throw new AppError(404, 'Không tìm thấy bài thi');
   }
-  await ensureClassAccess(exam.classId, requestUser, { allowStudent });
-  return exam;
+  if (requestUser.role === 'STUDENT' && !allowStudent) {
+    throw new AppError(403, 'Không có quyền truy cập');
+  }
+  throw new AppError(
+    403,
+    requestUser.role === 'TEACHER' ? 'Bạn không phụ trách lớp học này' : 'Bạn chưa tham gia lớp học này'
+  );
 };
 
 export const getExamById = async (examId, requestUser) => {

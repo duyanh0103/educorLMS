@@ -30,6 +30,22 @@ export const findClassById = async (id) => {
   return prisma.class.findUnique({ where: { id }, include: classInclude, relationLoadStrategy: 'join' });
 };
 
+// Gộp "lấy class" + "kiểm tra quyền phụ trách/tham gia" thành 1 round-trip DB thay vì 2 query tuần
+// tự (findClassById rồi isTeacherAssignedToClass/isStudentEnrolledInClass riêng) — xem giải thích
+// chi tiết ở exam.repository.js#findExamWithAccess (cùng lý do, cùng cách làm).
+export const findClassWithAccess = async (classId, requestUser, { allowStudent = false } = {}) => {
+  if (requestUser.role === 'STUDENT' && !allowStudent) return null;
+
+  const roleFilter =
+    requestUser.role === 'TEACHER'
+      ? { teachers: { some: { teacherId: requestUser.id } } }
+      : requestUser.role === 'STUDENT'
+        ? { enrollments: { some: { studentId: requestUser.id } } }
+        : {};
+
+  return prisma.class.findFirst({ where: { id: classId, deletedAt: null, ...roleFilter } });
+};
+
 export const findManyClasses = async ({ where, skip, take }) => {
   const [items, total] = await Promise.all([
     prisma.class.findMany({

@@ -1,5 +1,5 @@
 
 Tài khoản	Role	Mật khẩu mới
 admin	SUPER_ADMIN	không đổi — vẫn là Admin@123 (theo seed script, chưa reset)
-teacher01	TEACHER	auD5sdFrhG
-student01	STUDENT	8CiGHRLKYX
+teacher02	TEACHER	XAKiaY2Sfm
+student02	STUDENT	p5BdVx5VJL
