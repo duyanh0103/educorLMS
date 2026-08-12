@@ -1,5 +1,10 @@
 import xlsx from 'xlsx';
 
+// A-F -> tối đa 6 lựa chọn, khớp với giới hạn KEY_LETTERS ở form "Thêm câu hỏi" thủ công (FE).
+const OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+const cellToTrimmedString = (value) => (value === undefined || value === null ? '' : String(value).trim());
+
 export const parseExcelQuestions = (buffer) => {
   const workbook = xlsx.read(buffer, { type: 'buffer' });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -28,12 +33,22 @@ export const parseExcelQuestions = (buffer) => {
       score: Number(row.score) > 0 ? Number(row.score) : 1,
     };
 
+    const contentImageUrl = cellToTrimmedString(row.contentImageUrl);
+    if (contentImageUrl) question.contentImageUrl = contentImageUrl;
+
+    const difficultyLevel = cellToTrimmedString(row.difficultyLevel);
+    if (difficultyLevel) question.difficultyLevel = difficultyLevel;
+
+    const skillTag = cellToTrimmedString(row.skillTag);
+    if (skillTag) question.skillTag = skillTag;
+
     if (type === 'MULTIPLE_CHOICE') {
       const options = [];
-      ['A', 'B', 'C', 'D'].forEach((key) => {
-        const text = row[`option${key}`];
-        if (text && String(text).trim()) {
-          options.push({ key, text: String(text).trim() });
+      OPTION_KEYS.forEach((key) => {
+        const text = cellToTrimmedString(row[`option${key}`]);
+        const imageUrl = cellToTrimmedString(row[`option${key}ImageUrl`]);
+        if (text || imageUrl) {
+          options.push({ key, text, ...(imageUrl && { imageUrl }) });
         }
       });
 
