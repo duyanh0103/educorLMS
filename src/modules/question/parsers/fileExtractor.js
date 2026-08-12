@@ -1,7 +1,6 @@
-import mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 import { parseExcelQuestions } from './excelParser.js';
-import { parseTextQuestions } from './textParser.js';
+import { parseDocxTableQuestions } from './docxTableParser.js';
+import { parsePdfQuestions } from './pdfTextParser.js';
 import { AppError } from '../../auth/auth.service.js';
 
 export const extractQuestionsFromFile = async (file) => {
@@ -12,15 +11,11 @@ export const extractQuestionsFromFile = async (file) => {
   }
 
   if (mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    const result = await mammoth.extractRawText({ buffer });
-    return parseTextQuestions(result.value);
+    return parseDocxTableQuestions(buffer);
   }
 
   if (mimetype === 'application/pdf') {
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    await parser.destroy();
-    return parseTextQuestions(result.text);
+    return parsePdfQuestions(buffer);
   }
 
   throw new AppError(400, 'Định dạng file không được hỗ trợ');

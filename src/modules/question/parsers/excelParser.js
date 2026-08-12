@@ -6,19 +6,19 @@ export const parseExcelQuestions = (buffer) => {
   const rows = xlsx.utils.sheet_to_json(sheet);
 
   const parsed = [];
-  const errors = [];
+  const skipped = [];
 
   rows.forEach((row, index) => {
     const rowNumber = index + 2; // +2 vì dòng 1 là header, Excel đếm từ 1
     const type = String(row.type || '').trim().toUpperCase();
 
     if (!['MULTIPLE_CHOICE', 'ESSAY', 'CODE'].includes(type)) {
-      errors.push({ row: rowNumber, reason: `type không hợp lệ: "${row.type}"` });
+      skipped.push({ row: rowNumber, reason: `type không hợp lệ: "${row.type}"` });
       return;
     }
 
     if (!row.content || String(row.content).trim().length < 3) {
-      errors.push({ row: rowNumber, reason: 'content trống hoặc quá ngắn' });
+      skipped.push({ row: rowNumber, reason: 'content trống hoặc quá ngắn' });
       return;
     }
 
@@ -38,13 +38,13 @@ export const parseExcelQuestions = (buffer) => {
       });
 
       if (options.length < 2) {
-        errors.push({ row: rowNumber, reason: 'MULTIPLE_CHOICE cần ít nhất 2 lựa chọn (optionA, optionB...)' });
+        skipped.push({ row: rowNumber, reason: 'MULTIPLE_CHOICE cần ít nhất 2 lựa chọn (optionA, optionB...)' });
         return;
       }
 
       const correctAnswer = String(row.correctAnswer || '').trim().toUpperCase();
       if (!options.some((o) => o.key === correctAnswer)) {
-        errors.push({ row: rowNumber, reason: `correctAnswer "${row.correctAnswer}" không khớp với option nào` });
+        skipped.push({ row: rowNumber, reason: `correctAnswer "${row.correctAnswer}" không khớp với option nào` });
         return;
       }
 
@@ -55,5 +55,5 @@ export const parseExcelQuestions = (buffer) => {
     parsed.push(question);
   });
 
-  return { parsed, errors };
+  return { parsed, skipped };
 };
