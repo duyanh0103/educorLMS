@@ -16,6 +16,7 @@ import { examSubmissionRetakeRouter, classRetakeRequestRouter, retakeRequestRout
 import { classAssignmentRouter, assignmentRouter, assignmentSubmissionRouter } from './modules/assignment/assignment.route.js';
 import { dashboardRouter } from './modules/dashboard/dashboard.route.js';
 import { classSessionRouter, sessionRouter } from './modules/session/session.route.js';
+import uploadRouter from './modules/upload/upload.route.js';
 
 // ...
 
@@ -60,4 +61,6 @@ app.use('/api/dashboard', dashboardRouter);
 
 app.use('/api/classes/:classId/sessions', classSessionRouter);
 app.use('/api/sessions', sessionRouter);
+
+app.use('/api/uploads', uploadRouter);
 export default app;

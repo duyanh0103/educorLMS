@@ -238,10 +238,13 @@ model Question {
   exam          Exam         @relation(fields: [examId], references: [id])
   type          QuestionType
   content       String
-  options       Json? // cho multiple choice: [{key, text}]
+  contentImageUrl String?    @map("content_image_url")
+  options       Json? // cho multiple choice: [{key, text, imageUrl?}]
   correctAnswer String?      @map("correct_answer")
   score         Float        @default(1)
   order         Int          @default(0)
+  difficultyLevel String?    @map("difficulty_level")
+  skillTag        String?    @map("skill_tag")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -116,7 +116,7 @@ export const importQuestions = async (examId, file, requestUser) => {
     throw new AppError(400, 'Vui lòng đính kèm file (.xlsx, .docx, hoặc .pdf)');
   }
 
-  const { parsed, errors } = await extractQuestionsFromFile(file);
+  const { parsed, skipped } = await extractQuestionsFromFile(file);
 
   const imported = [];
   for (const q of parsed) {
@@ -127,6 +127,6 @@ export const importQuestions = async (examId, file, requestUser) => {
   return {
     importedCount: imported.length,
     imported,
-    skipped: errors, // các câu bị lỗi định dạng, không import được
+    skipped, // các câu bị lỗi định dạng, không import được
   };
 };
