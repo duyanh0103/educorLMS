@@ -91,6 +91,116 @@ export const getTeacherClasses = async (classIds) => {
   });
 };
 
+// Lịch học của teacher trong đúng ngày hôm nay (theo giờ server) — 1 round-trip duy nhất
+// nhờ lọc trực tiếp qua relation class.teachers thay vì tách 2 bước (lấy classIds rồi mới
+// query session theo classIds).
+export const findTodaySessionsByTeacher = async (teacherId) => {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const sessions = await prisma.classSession.findMany({
+    where: {
+      startAt: { gte: startOfDay, lte: endOfDay },
+      class: { teachers: { some: { teacherId } } },
+    },
+    orderBy: { startAt: 'asc' },
+    include: {
+      class: { select: { name: true, _count: { select: { enrollments: true } } } },
+    },
+  });
+
+  return sessions.map((s) => ({
+    classId: s.classId,
+    className: s.class.name,
+    title: s.title,
+    startAt: s.startAt,
+    endAt: s.endAt,
+    studentCount: s.class._count.enrollments,
+  }));
+};
+
+// Ngày gần nhất trong tương lai (sau hôm nay) có ít nhất 1 session của teacher, kèm tổng số
+// session trong đúng ngày đó. null nếu không còn session tương lai nào.
+export const findNextUpcomingDateByTeacher = async (teacherId) => {
+  const now = new Date();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const nextSession = await prisma.classSession.findFirst({
+    where: {
+      startAt: { gt: endOfToday },
+      class: { teachers: { some: { teacherId } } },
+    },
+    orderBy: { startAt: 'asc' },
+    select: { startAt: true },
+  });
+
+  if (!nextSession) return null;
+
+  const d = nextSession.startAt;
+  const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+  const sessionsCount = await prisma.classSession.count({
+    where: {
+      startAt: { gte: dayStart, lte: dayEnd },
+      class: { teachers: { some: { teacherId } } },
+    },
+  });
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const date = `${dayStart.getFullYear()}-${pad(dayStart.getMonth() + 1)}-${pad(dayStart.getDate())}`;
+
+  return { date, sessionsCount };
+};
+
+// Session của student đang diễn ra NGAY LÚC NÀY (chỉ tính enrollment còn ACTIVE).
+export const findCurrentSessionsByStudent = async (studentId) => {
+  const now = new Date();
+
+  const sessions = await prisma.classSession.findMany({
+    where: {
+      startAt: { lte: now },
+      endAt: { gte: now },
+      class: { enrollments: { some: { studentId, status: 'ACTIVE' } } },
+    },
+    orderBy: { startAt: 'asc' },
+    include: { class: { select: { name: true } } },
+  });
+
+  return sessions.map((s) => ({
+    classId: s.classId,
+    className: s.class.name,
+    title: s.title,
+    startAt: s.startAt,
+    endAt: s.endAt,
+  }));
+};
+
+// Session sắp tới gần nhất của student (chỉ tính enrollment còn ACTIVE). null nếu không còn.
+export const findNextSessionByStudent = async (studentId) => {
+  const now = new Date();
+
+  const session = await prisma.classSession.findFirst({
+    where: {
+      startAt: { gt: now },
+      class: { enrollments: { some: { studentId, status: 'ACTIVE' } } },
+    },
+    orderBy: { startAt: 'asc' },
+    include: { class: { select: { name: true } } },
+  });
+
+  if (!session) return null;
+
+  return {
+    classId: session.classId,
+    className: session.class.name,
+    title: session.title,
+    startAt: session.startAt,
+    endAt: session.endAt,
+  };
+};
+
 export const getTeacherRawStats = async (classIds) => {
   // Gộp 9 query tuần tự (1 findMany + 8 count) thành 1 round-trip duy nhất — cùng
   // lý do như getAdminRawStats ở trên.

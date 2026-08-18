@@ -61,10 +61,21 @@ export const getAdminDashboard = async () => {
 export const getTeacherDashboard = async (teacherId) => {
   const classIds = await dashboardRepo.getTeacherClassIds(teacherId);
 
-  const [classes, stats] = await Promise.all([
+  const [classes, stats, todaySessions] = await Promise.all([
     dashboardRepo.getTeacherClasses(classIds),
     dashboardRepo.getTeacherRawStats(classIds),
+    dashboardRepo.findTodaySessionsByTeacher(teacherId),
   ]);
+
+  const todaySchedule = {
+    count: todaySessions.length,
+    sessions: todaySessions,
+  };
+
+  // Chỉ cần tra ngày sắp tới gần nhất khi hôm nay không có lịch nào — tránh 1 query thừa.
+  const nextUpcomingDate = todaySessions.length === 0
+    ? await dashboardRepo.findNextUpcomingDateByTeacher(teacherId)
+    : null;
 
   return {
     classes: {
@@ -93,5 +104,16 @@ export const getTeacherDashboard = async (teacherId) => {
       published: stats.assignmentsPublished,
       pendingGrading: stats.assignmentsPendingGrading,
     },
+    todaySchedule,
+    nextUpcomingDate,
   };
+};
+
+export const getStudentDashboard = async (studentId) => {
+  const [currentSessions, nextSession] = await Promise.all([
+    dashboardRepo.findCurrentSessionsByStudent(studentId),
+    dashboardRepo.findNextSessionByStudent(studentId),
+  ]);
+
+  return { currentSessions, nextSession };
 };

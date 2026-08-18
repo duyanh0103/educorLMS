@@ -22,3 +22,12 @@ export const getTeacherDashboardController = async (req, res) => {
     return handleError(res, err);
   }
 };
+
+export const getStudentDashboardController = async (req, res) => {
+  try {
+    const result = await dashboardService.getStudentDashboard(req.user.id);
+    return successResponse(res, { message: 'Lấy dashboard thành công', data: result });
+  } catch (err) {
+    return handleError(res, err);
+  }
+};
