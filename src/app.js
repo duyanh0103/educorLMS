@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import { env } from './config/env.js';
 import authRoutes from './modules/auth/auth.route.js';
 import userRoutes from './modules/user/user.route.js';
 import courseRoutes from './modules/course/course.route.js';
@@ -26,6 +27,23 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
+// Chỉ dùng ở dev để test qua điện thoại/máy khác trong cùng mạng LAN (IP đổi theo từng mạng
+// WiFi nên không hardcode theo .env) — không áp dụng ở production.
+const isPrivateNetworkOrigin = (origin) => {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      /^127\./.test(hostname) ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
@@ -33,6 +51,9 @@ app.use(cors({
     if (!origin) return callback(null, true);
     // Cho phép domain trong allowedOrigins, và mọi preview deployment *.vercel.app
     if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    if (env.nodeEnv !== 'production' && isPrivateNetworkOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
